@@ -10,10 +10,10 @@ import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import spray.json.DefaultJsonProtocol
 import com.typesafe.config._
 
-case class Post(body: String, id: Int, title: String, userId: Int)  {
+case class Post(body: String, id: Int, title: String, userId: Int) {
   def savePost(path: String): Unit = {
-    val savePath = path ++ "/" ++ this.id.toString ++ ".json"
     import PostJsonProtocol._
+    val savePath = path ++ "/" ++ this.id.toString ++ ".json"
     val w = new PrintWriter(new File(savePath))
     println("Saving file: " ++ savePath)
     w.write(this.asInstanceOf[Post].toJson.prettyPrint)
@@ -26,18 +26,18 @@ object PostJsonProtocol extends DefaultJsonProtocol {
 }
 
 object Downloader extends App {
+
   import PostJsonProtocol._
   import spray.json._
-  val conf = ConfigFactory.parseFile(new File("resources/application.conf"))
-  val system: ActorSystem = ActorSystem("post-download")
-  implicit val sys: ActorSystem = system
-  val responseFuture: Future[HttpResponse] =
-  Http().singleRequest(HttpRequest(uri = conf.getString("download-uri")))
 
-  val jsonStringFuture = responseFuture.flatMap{ r: HttpResponse => Unmarshal(r).to[String]}
-  val jsonValFut: Future[JsValue] = jsonStringFuture.map(_.parseJson)
-  val jsonVal: JsValue = Await.result(jsonValFut, conf.getInt("download-timeout-sec").seconds)
-  val json = jsonVal.toJson
+  implicit val sys: ActorSystem = ActorSystem("post-download")
+  val conf = ConfigFactory.parseFile(new File("resources/application.conf"))
+  val responseFuture: Future[HttpResponse] =
+    Http().singleRequest(HttpRequest(uri = conf.getString("download-uri")))
+
+  val jsonValFut = responseFuture.flatMap { r: HttpResponse => Unmarshal(r).to[String] }
+    .map(_.parseJson)
+  val json = Await.result(jsonValFut, conf.getInt("download-timeout-sec").seconds).toJson
   val listOfJsObjects = json.convertTo[List[JsObject]]
   val listOfPosts = listOfJsObjects.map(_.convertTo[Post])
 
