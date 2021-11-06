@@ -32,7 +32,7 @@ object Downloader extends App {
 
   implicit val sys: ActorSystem = ActorSystem("post-download")
   val conf = ConfigFactory.parseFile(new File("resources/application.conf"))
-  val responseFuture: Future[HttpResponse] =
+  val responseFuture =
     Http().singleRequest(HttpRequest(uri = conf.getString("download-uri")))
 
   val jsonValFut = responseFuture.flatMap { r: HttpResponse => Unmarshal(r).to[String] }
