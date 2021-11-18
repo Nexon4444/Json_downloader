@@ -42,7 +42,6 @@ object Downloader extends App {
 
   responseFuture.flatMap { r: HttpResponse => Unmarshal(r).to[String] }
     .map(_.parseJson)
-    .map(_.toJson)
     .map(_.convertTo[List[JsObject]])
     .map(_.map(_.convertTo[Post]))
     .onComplete((futComp: Try[List[Post]]) => futComp match {
