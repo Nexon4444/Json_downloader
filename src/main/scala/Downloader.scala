@@ -1,14 +1,16 @@
 import akka.actor.ActorSystem
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import spray.json._
+
 import java.io.{File, PrintWriter}
-import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, Future}
 import akka.http.scaladsl.Http
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import spray.json.DefaultJsonProtocol
 import com.typesafe.config._
+
+import scala.util.{Success, Try}
 
 case class Post(body: String, id: Int, title: String, userId: Int) {
   def savePost(path: String): Unit = {
@@ -26,20 +28,24 @@ object PostJsonProtocol extends DefaultJsonProtocol {
 }
 
 object Downloader extends App {
-
   import PostJsonProtocol._
   import spray.json._
 
   implicit val sys: ActorSystem = ActorSystem("post-download")
+
   val conf = ConfigFactory.parseFile(new File("resources/application.conf"))
+  val directory = new File(conf.getString("download-folder"))
+  if (!directory.exists) directory.mkdir
+
   val responseFuture =
     Http().singleRequest(HttpRequest(uri = conf.getString("download-uri")))
 
-  val jsonValFut = responseFuture.flatMap { r: HttpResponse => Unmarshal(r).to[String] }
+  responseFuture.flatMap { r: HttpResponse => Unmarshal(r).to[String] }
     .map(_.parseJson)
-  val json = Await.result(jsonValFut, conf.getInt("download-timeout-sec").seconds).toJson
-  val listOfJsObjects = json.convertTo[List[JsObject]]
-  val listOfPosts = listOfJsObjects.map(_.convertTo[Post])
-
-  listOfPosts.foreach(_.savePost(conf.getString("download-folder")))
+    .map(_.toJson)
+    .map(_.convertTo[List[JsObject]])
+    .map(_.map(_.convertTo[Post]))
+    .onComplete((futComp: Try[List[Post]]) => futComp match {
+      case Success(listOfPosts) => listOfPosts.foreach(_.savePost(conf.getString("download-folder")))
+    })
 }
